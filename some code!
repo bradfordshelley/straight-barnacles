@@ -1,0 +1,55 @@
+if (source.u_company == 'Integration Partners') {
+     //gs.log('Running onAfter script to attach photos to user records');
+     runPhotos();
+}
+
+function runPhotos(){
+     //gs.log('User Photo Script: Check for Existing Attachment');
+     var grPhotoAttachmentExists = new GlideRecord('sys_attachment');
+     grPhotoAttachmentExists.addQuery('table_name','ZZ_YYsys_user');
+     grPhotoAttachmentExists.addQuery('table_sys_id',target.sys_id);
+     grPhotoAttachmentExists.addQuery('file_name','photo');
+     grPhotoAttachmentExists.query();
+     if (source.u_thumbnailphoto != '') {
+          //gs.log('User Photo Script: LDAP Source Photo Exists');
+          if (!grPhotoAttachmentExists.next()) {
+               //gs.log('User Photo Script: No existing photo attachment, attach new photo');
+               attachPhoto();
+          }
+          else {
+               //gs.log('User Photo Script: Photo Attachment Exists, Compare Attachments');
+               var sysEncodedAttachment = new GlideSysAttachment();
+               var binData =sysEncodedAttachment.getBytes(grPhotoAttachmentExists);
+               var EncodedBytes = GlideStringUtil.base64Encode(binData);
+               if (EncodedBytes != source.u_thumbnailphoto) {
+                    //gs.log('User Photo Script: Photo attachment exists, bytes dont match, delete existing attachment and attach new photo');
+                    grPhotoAttachmentExists.deleteRecord();
+                    attachPhoto();
+               }
+          }
+     }
+     else {
+          //gs.log('User Photo Script: LDAP Source Photo Does Not Exist');
+          if (grPhotoAttachmentExists.next()) {
+               //gs.log('User Photo Script: Delete existing photo attachment');
+               grPhotoAttachmentExists.deleteRecord();
+          }
+     }
+}
+
+
+function attachPhoto(){
+     //gs.log('User Photo Script: Attach Photo');
+     var sysDecodedAttachment = new GlideSysAttachment();
+     var DecodedBytes = GlideStringUtil.base64DecodeAsBytes(source.u_thumbnailphoto);
+     var attID = sysDecodedAttachment.write(target, 'photo', 'image/jpeg', DecodedBytes);
+     var newAttachment = new GlideRecord("sys_attachment");
+     newAttachment.addQuery("sys_id", attID);
+     newAttachment.query();
+     if (newAttachment.next()) {
+          newAttachment.table_name = "ZZ_YYsys_user";
+          newAttachment.table_sys_id = target.sys_id;
+          newAttachment.content_type = 'image/jpeg';
+          newAttachment.update();
+     }
+}
